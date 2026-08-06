@@ -600,6 +600,22 @@ export const useCalcdexContext = (): CalcdexContextConsumables => {
       }
     }
 
+    // Pokéathlon Stance Change (Body = Aegislash): toggling the BODY's Shield/Blade forme (the `fusion`
+    // field) only swaps the fused Atk<->Def & SpA<->SpD stats — so re-fuse the base stats via
+    // sanitizePokemon WITHOUT touching the applied preset/types/abilities (unchanged between stances).
+    // (Skipped when speciesForme also changed, since the block above already re-fused with the new fusion.)
+    if (prev.fusion !== mutated.fusion && prev.speciesForme === mutated.speciesForme) {
+      const { baseStats } = sanitizePokemon(mutated, state.format);
+
+      if (nonEmptyObject(baseStats)) {
+        mutated.baseStats = { ...baseStats };
+
+        if (Object.values(mutated.dirtyBaseStats || {}).some((v) => v > 0)) {
+          mutated.dirtyBaseStats = {};
+        }
+      }
+    }
+
     if (mutating('ivs')) {
       mutated.ivs = { ...prev.ivs, ...mutations.ivs };
     }

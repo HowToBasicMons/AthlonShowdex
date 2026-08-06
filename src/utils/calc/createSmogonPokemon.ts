@@ -19,6 +19,7 @@ import {
   detectGenFromFormat,
   detectLegacyGen,
   getGenDexForFormat,
+  getPokeathlonModId,
   notFullyEvolved,
 } from '@showdex/utils/dex';
 import { calcPokemonHpPercentage } from './calcPokemonHp';
@@ -221,6 +222,25 @@ export const createSmogonPokemon = (
     },
   };
 
+  // Pokéathlon Stance Change (PIF): a fused Aegislash in Blade forme swaps the FINAL Atk<->Def &
+  // SpA<->SpD raw stats (IF copy-pastes the on-screen numbers & trades places) — NOT the base stats.
+  // rawStats was seeded from spreadStats (final EV/IV/nature stats), so swap them here before any
+  // further stat mods (items/abilities/frostburn), mirroring the display path in calcPokemonFinalStats.
+  // (Non-fusion Aegislash-Blade uses the dex's own Blade base stats, so it's left alone.)
+  if (pokemon.fusion && (formatId(pokemon.speciesForme) === 'aegislashblade' || formatId(pokemon.fusion) === 'aegislashblade')) {
+    const {
+      atk, def, spa, spd,
+    } = options.rawStats;
+
+    options.rawStats = {
+      ...options.rawStats,
+      atk: def,
+      def: atk,
+      spa: spd,
+      spd: spa,
+    };
+  }
+
   // Pokéathlon custom items: @smogon/calc doesn't know their effects, so pre-apply their base-stat
   // multipliers (e.g. Goomba Boots 2x Spe, Sturdy Shell 2x Def, ...) to the rawStats fed into the
   // calc. Known items (Choice Band, etc.) aren't in this table, so there's no double-application.
@@ -246,7 +266,12 @@ export const createSmogonPokemon = (
 
     const poaAbilityMods = getPokeathlonAbilityStatMods(
       ability,
-      { weather: weatherId, terrain: terrainId, status: !!status },
+      {
+        weather: weatherId,
+        terrain: terrainId,
+        status: !!status,
+        modId: getPokeathlonModId(format),
+      },
       !field, // unconditionalOnly when there's no field context
     );
 
@@ -255,6 +280,13 @@ export const createSmogonPokemon = (
         options.rawStats[stat] = Math.floor(options.rawStats[stat] * mult);
       }
     });
+  }
+
+  // Pokéathlon frostburn ('frb'): the special analog of burn — it halves Special-move damage (& the
+  // server remaps freeze to it). @smogon/calc doesn't know this status, so halve SpA in the rawStats
+  // (skipped w/ Guts, mirroring burn). Physical moves use Atk & are unaffected, matching the server.
+  if ((status as string) === 'frb' && abilityId !== 'guts' && typeof options.rawStats.spa === 'number') {
+    options.rawStats.spa = Math.floor(options.rawStats.spa * 0.5);
   }
 
   // in legacy gens, make sure that the SPD DVs match the SPA DVs

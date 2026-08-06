@@ -11,7 +11,7 @@ import { type TooltipProps, BaseButton, Tooltip } from '@showdex/components/ui';
 import { type CalcdexPokemon } from '@showdex/interfaces/calc';
 import { useColorScheme } from '@showdex/redux/store';
 import { formatId } from '@showdex/utils/core';
-import { getDexForFormat } from '@showdex/utils/dex';
+import { getDexForFormat, getFusionBodyStanceFormes } from '@showdex/utils/dex';
 import { Picon } from '../Picon';
 import styles from './PokeFormeTooltip.module.scss';
 
@@ -51,9 +51,9 @@ export const PokeFormeTooltip = ({
     speciesForme,
     transformedForme,
     altFormes,
+    fusion,
   } = pokemon || {};
 
-  const altFormesCount = altFormes?.length || 0;
   const formeKey = transformedForme ? 'transformedForme' : 'speciesForme';
 
   const currentForme = React.useMemo(
@@ -63,22 +63,42 @@ export const PokeFormeTooltip = ({
 
   const dexForme = React.useMemo(() => dex.species.get(currentForme), [currentForme, dex]);
   const baseForme = (dexForme?.exists && dexForme.baseSpecies) || null;
-  const tBaseForme = React.useMemo(() => t(`pokedex:species.${formatId(baseForme)}`, baseForme), [baseForme, t]);
+
+  // Pokéathlon Infinite Fusion: the Body (`fusion`) can have its own Stance Change formes (Aegislash
+  // Shield/Blade) that the Head-based `altFormes` never surfaces. Render those as extra toggles that
+  // flip the `fusion` field instead of `speciesForme`.
+  const bodyStanceFormes = React.useMemo(() => getFusionBodyStanceFormes(fusion), [fusion]);
+  const bodyBaseForme = bodyStanceFormes[0] || null;
+
+  // unified list of toggleable formes: Head formes (write to speciesForme/transformedForme) followed
+  // by the Body's stance formes (write to fusion)
+  const renderFormes = React.useMemo(() => {
+    const headFormes = (altFormes || [])
+      .filter((f) => !!f && !!baseForme && f.startsWith(baseForme) && !f.endsWith('-Tera'))
+      .map((forme) => ({ forme, targetKey: formeKey as keyof CalcdexPokemon, base: baseForme, current: currentForme }));
+
+    const bodyFormes = bodyStanceFormes
+      .map((forme) => ({ forme, targetKey: 'fusion' as keyof CalcdexPokemon, base: bodyBaseForme, current: fusion }));
+
+    return [...headFormes, ...bodyFormes];
+  }, [altFormes, baseForme, bodyBaseForme, bodyStanceFormes, currentForme, formeKey, fusion]);
+
+  const formesCount = renderFormes.length;
 
   const handleFormePress = React.useCallback((
     forme: string,
+    targetKey: keyof CalcdexPokemon,
+    current: string,
   ) => {
     // don't fire the callback if the forme is the same
-    if (currentForme === forme) {
+    if (current === forme) {
       return;
     }
 
     // make sure to close the tooltip once the forme is selected for that good good UX
-    onPokemonChange?.({ [formeKey]: forme });
+    onPokemonChange?.({ [targetKey]: forme });
     onRequestClose?.();
   }, [
-    currentForme,
-    formeKey,
     onPokemonChange,
     onRequestClose,
   ]);
@@ -96,25 +116,30 @@ export const PokeFormeTooltip = ({
           )}
           style={{
             ...style,
-            gridTemplateColumns: `repeat(${Math.min(altFormesCount, maxColumns)}, ${columnWidth}px)`,
+            gridTemplateColumns: `repeat(${Math.min(formesCount, maxColumns)}, ${columnWidth}px)`,
           }}
         >
-          {altFormes?.map((altForme) => {
-            if (!altForme || !altForme.startsWith(baseForme) || altForme.endsWith('-Tera')) {
+          {renderFormes.map(({
+            forme: altForme,
+            targetKey,
+            base,
+            current,
+          }) => {
+            if (!altForme) {
               return null;
             }
 
-            // const dexAltForme = dex?.species.get(altForme);
+            const tItemBase = t(`pokedex:species.${formatId(base)}`, base);
             const tAltForme = t(`pokedex:species.${formatId(altForme)}`, altForme);
-            const formeName = tBaseForme === tAltForme
-              ? t('common:labels.base', tBaseForme)
-              : tAltForme.replace(`${tBaseForme}-`, '');
+            const formeName = tItemBase === tAltForme
+              ? t('common:labels.base', tItemBase)
+              : tAltForme.replace(`${tItemBase}-`, '');
 
-            const selected = currentForme === altForme;
+            const selected = current === altForme;
 
             return (
               <BaseButton
-                key={`PokeFormeTooltip:${speciesForme}:AltForme:${altForme}`}
+                key={`PokeFormeTooltip:${speciesForme}:AltForme:${targetKey}:${altForme}`}
                 className={cx(
                   styles.formeButton,
                   selected && styles.selected,
@@ -122,7 +147,7 @@ export const PokeFormeTooltip = ({
                 display="block"
                 hoverScale={1}
                 activeScale={selected ? 0.98 : undefined}
-                onPress={() => handleFormePress(altForme)}
+                onPress={() => handleFormePress(altForme, targetKey, current)}
               >
                 <Picon
                   // className={styles.picon}
@@ -141,7 +166,7 @@ export const PokeFormeTooltip = ({
       interactive
       placement="top-start"
       offset={[0, 7]}
-      disabled={!speciesForme || !altFormesCount || disabled}
+      disabled={!speciesForme || !formesCount || disabled}
       onClickOutside={onRequestClose}
     >
       {children}

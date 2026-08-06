@@ -2,8 +2,17 @@ import { type GenerationNum } from '@smogon/calc';
 import { formatId } from '@showdex/utils/core';
 import { logger } from '@showdex/utils/debug';
 import { detectGenFromFormat } from './detectGenFromFormat';
+import { getPokeathlonModId } from './fuseSpecies';
 
 const l = logger('@showdex/utils/dex/getDexForFormat()');
+
+/**
+ * Positive cache of resolved Pokéathlon mod `Dex`es, keyed by format id, so the guarded `Dex.mod()`
+ * probe runs at most once per mod format (hot path). Only successful resolutions are cached — misses
+ * are cheap to recompute (the keyword regex returns null instantly for vanilla formats) & must not be
+ * cached, in case the mod's data simply hadn't loaded yet on the first call.
+ */
+const cachedModDex: Record<string, Showdown.ModdedDex> = {};
 
 /**
  * Returns the appropriate `Dex` object for the passed-in `format`.
@@ -58,6 +67,32 @@ export const getDexForFormat = (format?: string | GenerationNum): Showdown.Modde
 
   if (typeof gen !== 'number' || gen < 1) {
     return Dex;
+  }
+
+  // Pokéathlon custom mods (Soulstones, Insurgence, Uranium, Infinity, Mariomon, Chaos, Infinite
+  // Fusion, ...): return the server's modded Dex so per-mod move types (e.g. Soulstones' Aura Sphere
+  // → Light, Hyper Voice/Boomburst → Sound), base stats, learnsets, abilities & items resolve — the
+  // base gen Dex doesn't have these. Guarded since Dex.mod() throws on an unregistered mod id; only
+  // successful resolutions are cached. Falls back to the base gen Dex on any miss (behaves as before).
+  if (cachedModDex[formatAsId]) {
+    return cachedModDex[formatAsId];
+  }
+
+  const modId = getPokeathlonModId(formatAsId);
+
+  if (modId) {
+    try {
+      const moddedDex = Dex.mod(modId as Parameters<typeof Dex.mod>[0]);
+
+      // probe that the mod is actually usable (Dex.mod() can return a dex whose data isn't loaded yet)
+      if (moddedDex?.moves?.get('tackle')?.exists) {
+        cachedModDex[formatAsId] = moddedDex;
+
+        return moddedDex;
+      }
+    } catch {
+      // unregistered/unavailable mod — fall through to the base gen Dex below
+    }
   }
 
   return Dex.forGen(gen);

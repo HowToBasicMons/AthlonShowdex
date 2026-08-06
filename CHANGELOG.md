@@ -2,6 +2,42 @@
 
 All notable changes to **Athlon Showdex** (a fork of [doshidak/showdex](https://github.com/doshidak/showdex) for [Pokéathlon](https://play.pokeathlon.com)).
 
+## v1.0.6
+
+Merged **upstream Showdex v1.4.0** into the Pokéathlon fork — all of our work is preserved, with upstream's latest features and fixes layered in.
+
+**From upstream (v1.4.0)**
+- **Teledex / Devdex** — a "Dump Bug Report" tool + live log viewer (great for sending us reproducible reports).
+- **Preset fixes** — smarter Randoms guessing (don't gate on revealed item, Mega-stone handling), mega/primal forme folding, format-scoped preset pools.
+- **Performance** — log ring-buffer, throttled re-renders, hot-path trims.
+- A **Mega toggle button** in the moves panel, and an `@smogon/calc` patch sync.
+
+**Fork integrity**
+- Verified every Pokéathlon system survived the merge unchanged: fusion engine, custom abilities & items, New Moon, Expert Moves, presets, sprites, types, and the rebrand. The `@smogon/calc` ShowdexCalcMods patch is confirmed applied.
+
+**Full per-mod mechanics support**
+- **Per-mod dex routing** — the calc now reads each fangame's own dex, so custom move types resolve everywhere (e.g. Soulstones' Aura Sphere → Light, Hyper Voice/Boomburst → Sound), along with per-mod base stats, learnsets, abilities & items.
+- **Custom-type damage abilities** — Soulstones (Virtuoso, Light Bulb, Affection, Maestro, …) & Insurgence (Shadow Synergy/Call, Spirit Call, Psycho Call) boost their type's damage; HP-gated ones included.
+- **Type-resist / immunity abilities** — Light Bulb/Terrorize (halve incoming Dark/Bug), Crystalline (halve Ground/Water), and full immunities Disenchant (Fairy), Lead Skin (Nuclear), Windy Wall (Flying).
+- **Mod-scoped redefined abilities** — Soulstones' Battle Armor/Shell Armor/Snow Cloak/Sand Veil/Overcoat/Attunement only apply in Soulstones (no leaking into other formats).
+- **Custom items** — Soulstones Orion orbs corrected to ×2, Insurgence Delta items (Dragon Fang/Scale, Light Ball → Pikachu-Delta).
+- Covers **Soulstones, Insurgence, Uranium, Chaos, Mariomon, Infinity** & Infinite Fusion.
+
+**Authoritative custom-type charts**
+- The five custom types (Sound, Light, Cosmic, Nuclear, Crystal) now resolve their immunities/resistances from the **server's own per-mod type charts** (bundled into the extension), instead of the live client chart that could be stale or incomplete. Example: in Soulstones, Cosmic is now correctly immune to Ground & Sound and resists Fire (the client previously reported it immune to Fire).
+- Added `scripts/build-pokeathlon-typecharts.mjs` (merges the base chart with each mod's overrides; run via `pnpm build:typecharts`).
+
+**Aegislash Stance Change — fixed**
+- Blade forme now swaps the **final computed stats** (Atk↔Def, SpA↔SpD) instead of the base stats, matching Infinite Fusion (your Defense investment effectively becomes Attack). The previous base-stat swap applied EVs to the wrong slot, producing incorrect numbers.
+- The manual Shield ⟷ Blade toggle now works when Aegislash is the **body** of a fusion (was head-only), and persists across syncs.
+
+**Frostburn (`frb`)**
+- Modeled the special analog of Burn: halves Special-move damage (skipped with Guts), mirroring the server which remaps Freeze to it.
+
+**Internal**
+- Added regression tests for the custom item/ability stat-mod resolvers, the bundled type-chart resolution, and the fusion stance/forme helpers (now **138** tests total).
+- Consolidated on the upstream Vitest config; fixed an incomplete teledex test mock.
+
 ## v1.0.5
 
 Official release consolidating the v1.0.4-hotfix.1 fixes plus custom-ability support, an item/type-chart audit, and the first unit tests.

@@ -3,6 +3,7 @@ export * from './GradientButton';
 export * from './HomieButton';
 export * from './ItemIcon';
 export * from './MemberIcon';
+export * from './NidoEasterEgg';
 export * from './Picon';
 export * from './PiconButton';
 export * from './PokeAbilityOptionTooltip';

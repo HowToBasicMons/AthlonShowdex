@@ -111,7 +111,7 @@
       {
         "name": "Taco",
         "item": "Heavy-Duty Boots",
-        "ability": "Swift Swim",
+        "ability": "Marvel Scale",
         "nature": "Relaxed",
         "teraType": "Water",
         "level": null,
@@ -298,7 +298,7 @@
       {
         "name": "Offensive",
         "item": "Choice Specs",
-        "ability": "torrentstickyhold",
+        "ability": "Sticky Hold",
         "nature": "Timid",
         "teraType": "Water",
         "level": null,

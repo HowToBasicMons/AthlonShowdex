@@ -50,7 +50,7 @@ import {
   writeClipboardText,
 } from '@showdex/utils/core';
 import { logger } from '@showdex/utils/debug';
-import { getFusionName, hasNickname, legalLockedFormat, toggleableAbility } from '@showdex/utils/dex';
+import { getFusionBodyStanceFormes, getFusionName, hasNickname, legalLockedFormat, toggleableAbility } from '@showdex/utils/dex';
 import { useRandomUuid } from '@showdex/utils/hooks';
 import { openSmogonDex } from '@showdex/utils/host';
 import { capitalize } from '@showdex/utils/humanize';
@@ -356,7 +356,10 @@ export const PokeInfo = ({
 
   // update (2024/01/10): if there's only 1, chances are it's its current forme
   // e.g., speciesForme = 'Kyogre', altFormes = ['Kyogre']
-  const formeDisabled = (pokemon?.altFormes?.length || 0) < 2;
+  // Pokéathlon Infinite Fusion: also enable the switcher when the Body (`fusion`) is a Stance Change
+  // species (Aegislash), so its Shield/Blade can be manually toggled even when it's not the Head.
+  const formeDisabled = ((pokemon?.altFormes?.length || 0) < 2)
+    && getFusionBodyStanceFormes(pokemon?.fusion).length < 2;
 
   const showNonVolatileStatus = (
     operatingMode === 'standalone'

@@ -259,9 +259,10 @@ export const sanitizePokemon = <
   // (Skipped while transformed, which copies the target's stats instead.)
   if (!sanitizedPokemon.transformedForme && sanitizedPokemon.fusion && nonEmptyObject(species?.baseStats)) {
     // Pokéathlon Stance Change (PIF mechanic): a fused Aegislash in its Blade forme does NOT fuse using
-    // Aegislash-Blade's own base stats — instead PIF fuses the *Shield* (base) stats, then swaps the
-    // resulting fused Atk<->Def & SpA<->SpD. So detect the Blade stance on either half (Head or Body),
-    // fuse from each half's Shield base ('Aegislash'), then swap those two stat pairs on the fused table.
+    // Aegislash-Blade's own base stats — instead PIF fuses the *Shield* (base) stats. The Blade swap is
+    // applied later to the FINAL computed stats (Atk<->Def & SpA<->SpD), NOT the base stats — i.e. IF
+    // copy-pastes the on-screen raw numbers & trades places, so a Def investment effectively becomes an
+    // Atk investment. (That final-stat swap lives in calcPokemonFinalStats & createSmogonPokemon.)
     const headIsBlade = formatId(sanitizedPokemon.speciesForme) === 'aegislashblade';
     const bodyIsBlade = formatId(sanitizedPokemon.fusion) === 'aegislashblade';
 
@@ -269,14 +270,11 @@ export const sanitizePokemon = <
     const fusionSpecies = bodyIsBlade ? dex.species.get('Aegislash') : dex.species.get(sanitizedPokemon.fusion);
 
     if (headStatsSpecies?.exists && fusionSpecies?.exists && nonEmptyObject(headStatsSpecies.baseStats) && nonEmptyObject(fusionSpecies.baseStats)) {
-      const fused = fuseBaseStats(
+      // always fuse from each half's Shield base; the Blade stat swap happens on the final stats downstream
+      sanitizedPokemon.baseStats = fuseBaseStats(
         headStatsSpecies.baseStats as Showdown.StatsTable,
         fusionSpecies.baseStats as Showdown.StatsTable,
       );
-
-      sanitizedPokemon.baseStats = (headIsBlade || bodyIsBlade)
-        ? { ...fused, atk: fused.def, def: fused.atk, spa: fused.spd, spd: fused.spa }
-        : fused;
     }
   }
 

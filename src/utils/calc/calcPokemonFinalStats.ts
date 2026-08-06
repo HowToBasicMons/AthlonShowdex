@@ -8,6 +8,7 @@ import {
   detectGenFromFormat,
   detectLegacyGen,
   getDexForFormat,
+  getPokeathlonModId,
   notFullyEvolved,
   shouldIgnoreItem,
 } from '@showdex/utils/dex';
@@ -101,6 +102,16 @@ export const calcPokemonFinalStats = (
     record.swap('def', 'spd', 'moves', 'Wonder Room');
   }
 
+  // Pokéathlon Stance Change (PIF): a fused Aegislash in Blade forme swaps the FINAL Atk<->Def &
+  // SpA<->SpD stats (not the base stats) — IF copy-pastes the on-screen raw numbers & trades places,
+  // so e.g. a Def investment effectively becomes an Atk investment. record was seeded from spreadStats
+  // (final EV/IV/nature stats), so swapping here (before boosts) matches the in-game behavior.
+  // (Non-fusion Aegislash-Blade uses the dex's Blade base stats directly, so no swap needed there.)
+  if (!!pokemon.fusion && (id(pokemon.speciesForme) === 'aegislashblade' || id(pokemon.fusion) === 'aegislashblade')) {
+    record.swap('atk', 'def', 'abilities', 'Stance Change');
+    record.swap('spa', 'spd', 'abilities', 'Stance Change');
+  }
+
   // apply stat boosts
   // note: calcBoostedStats() writes directly to our existing record via record.apply()
   void calcBoostedStats(format, pokemon, record);
@@ -123,6 +134,11 @@ export const calcPokemonFinalStats = (
     // 50% ATK reduction when burned (all gens... probably)
     if (status === 'brn' && (legacy || ability !== 'guts')) {
       record.apply('atk', 0.5, 'nonvolatiles', 'Burn');
+    }
+
+    // Pokéathlon frostburn ('frb'): special analog of burn — 50% SpA reduction (skipped w/ Guts)
+    if ((status as string) === 'frb' && ability !== 'guts') {
+      record.apply('spa', 0.5, 'nonvolatiles', 'Frostburn');
     }
 
     // 50% ATK boost w/ non-volatile status condition due to "Guts" (gen 3+)
@@ -518,6 +534,7 @@ export const calcPokemonFinalStats = (
     weather,
     terrain,
     status: !!status,
+    modId: getPokeathlonModId(typeof format === 'string' ? format : ''),
   });
 
   (Object.entries(poaAbilityMods) as [Showdown.StatName, number][]).forEach(([stat, mult]) => {

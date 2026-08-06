@@ -40,8 +40,8 @@ export const PokeathlonItemStatMods: PokeathlonItemStatModRule[] = [
   { items: ['sharpcoral'], species: ['cuboneorion', 'marowakorion'], mods: { atk: 2 } },
   { items: ['arcanespellbook'], species: ['omanyteorion', 'omastarorion'], mods: { spa: 2 } },
   { items: ['focusingorb'], species: ['clamperlorion'], mods: { def: 2, spd: 2 } },
-  { items: ['radiantorb'], species: ['illumiseorion'], mods: { spa: 1.5, spd: 1.5 } },
-  { items: ['voidheart'], species: ['volbeatorion'], mods: { atk: 1.5, def: 1.5 } },
+  { items: ['radiantorb'], species: ['illumiseorion'], mods: { spa: 2, spd: 2 } },
+  { items: ['voidheart'], species: ['volbeatorion'], mods: { atk: 2, def: 2 } },
   { items: ['dandelight'], species: ['delcattyorion', 'delcattytemporal'], mods: { def: 1.25, spd: 1.25 } },
   // Anchor: holder's Spe is halved (any holder); Dhelmise additionally gets 1.5x Atk
   { items: ['anchor'], mods: { spe: 0.5 } },
@@ -49,6 +49,14 @@ export const PokeathlonItemStatMods: PokeathlonItemStatModRule[] = [
   { items: ['assaultarmor'], mods: { def: 1.5 } },
   { items: ['musclearmor'], mods: { def: 1.1 } },
   { items: ['wisevest'], mods: { spd: 1.1 } },
+
+  // Insurgence: items redefined for Delta-forme holders (species-gated, so effectively Insurgence-only).
+  // dragonfang/dragonscale `inherit` their vanilla effect (@smogon/calc still applies the 1.2x Dragon
+  // power), so we only add the Clamperl-Delta stat doubling on top. Light Ball is extended to
+  // Pikachu-Delta (whose baseSpecies isn't "Pikachu", so @smogon/calc wouldn't catch it).
+  { items: ['dragonfang'], species: ['clamperldelta'], mods: { atk: 2 } },
+  { items: ['dragonscale'], species: ['clamperldelta'], mods: { def: 2 } },
+  { items: ['lightball'], species: ['pikachudelta'], mods: { atk: 2, spa: 2 } },
 ];
 
 /**

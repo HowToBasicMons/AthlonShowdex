@@ -8,7 +8,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import cx from 'classnames';
 import { v4 as uuidv4 } from 'uuid';
-import { MemberIcon } from '@showdex/components/app';
+import { MemberIcon, NidoEasterEgg } from '@showdex/components/app';
 import {
   CloseButton,
   FieldCalc,
@@ -239,6 +239,8 @@ export const Calcdex = ({
             onPress={onCloseOverlay}
           />
         }
+
+        <NidoEasterEgg />
       </PageContainer>
 
       <ContextMenu

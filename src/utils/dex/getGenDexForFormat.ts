@@ -3,6 +3,7 @@ import { env } from '@showdex/utils/core';
 import { detectGenFromFormat } from './detectGenFromFormat';
 import { getDexForFormat } from './getDexForFormat';
 import { getNaturesDex } from './getNaturesDex';
+import { getPokeathlonModId } from './fuseSpecies';
 import { getTypesDex } from './getTypesDex';
 import { notFullyEvolved } from './notFullyEvolved';
 
@@ -26,6 +27,10 @@ export const getGenDexForFormat = (
   if (!dex) {
     return null;
   }
+
+  // Pokéathlon: resolve the server mod id so getTypesDex() can use the bundled, authoritative
+  // per-mod type chart (custom-type immunities/resistances) instead of the live client chart
+  const modId = typeof format === 'string' ? getPokeathlonModId(format) : null;
 
   const gen = dex.gen as GenerationNum
     || (
@@ -56,6 +61,6 @@ export const getGenDexForFormat = (
     num: gen,
     natures: getNaturesDex(),
     species,
-    types: getTypesDex(gen),
+    types: getTypesDex(gen, modId),
   } as unknown as Generation;
 };

@@ -3,6 +3,8 @@ import {
   fuseBaseStats,
   fuseStat,
   fuseTypes,
+  getFusionBodyStanceFormes,
+  getPokeathlonModId,
   orderFusionTypes,
 } from './fuseSpecies';
 
@@ -42,10 +44,15 @@ describe('fuseBaseStats — Aegislash (Shield) + Doublade', () => {
   });
 });
 
-describe('Stance Change (PIF) — Blade swaps fused Atk<->Def & SpA<->SpD', () => {
-  it('swaps the fused Shield stats to produce Blade-forme stats', () => {
+describe('Stance Change (PIF) — Blade swaps the FINAL Atk<->Def & SpA<->SpD stats', () => {
+  // Note: PIF fuses from the Shield base stats; the Blade swap is applied to the FINAL computed stats
+  // (post EV/IV/nature) in calcPokemonFinalStats (display) & createSmogonPokemon (calc), NOT to the base
+  // stats. This illustrates the swap operation (here on the fused Shield table for brevity).
+  it('trades the two stat pairs (Def investment effectively becomes Atk)', () => {
     const shield = fuseBaseStats(AEGISLASH, DOUBLADE);
-    const blade = { ...shield, atk: shield.def, def: shield.atk, spa: shield.spd, spd: shield.spa };
+    const blade = {
+      ...shield, atk: shield.def, def: shield.atk, spa: shield.spd, spd: shield.spa,
+    };
 
     expect(blade).toEqual({
       hp: 59,
@@ -89,5 +96,51 @@ describe('orderFusionTypes', () => {
 
   it('leaves normal species type order unchanged', () => {
     expect(orderFusionTypes('Togekiss', ['Fairy', 'Flying'])).toEqual(['Fairy', 'Flying']);
+  });
+});
+
+describe('getPokeathlonModId', () => {
+  it('maps full mod keywords to their server mod id', () => {
+    expect(getPokeathlonModId('gen9soulstonesou')).toBe('gen9soulstones');
+    expect(getPokeathlonModId('gen9insurgenceou')).toBe('gen9insurgence');
+    expect(getPokeathlonModId('gen9uraniumou')).toBe('gen9uranium');
+    expect(getPokeathlonModId('gen9infinityou')).toBe('gen9infinity');
+    expect(getPokeathlonModId('gen9mariomonou')).toBe('gen9mariomon');
+    expect(getPokeathlonModId('gen9infinitefusionou')).toBe('gen9infinitefusion');
+    expect(getPokeathlonModId('gen9chaosou')).toBe('gen9chaos');
+    expect(getPokeathlonModId('gen9chaosfusionou')).toBe('gen9chaosfusion');
+  });
+
+  it('maps abbreviations without mis-matching longer keywords', () => {
+    expect(getPokeathlonModId('gen9ifdexou')).toBe('gen9infinitefusion'); // if -> infinitefusion
+    expect(getPokeathlonModId('gen9newlandsou')).toBe('gen9infinitefusion');
+    expect(getPokeathlonModId('gen9insrandombattle')).toBe('gen9insurgence');
+    expect(getPokeathlonModId('gen6urarandombattle')).toBe('gen6uranium');
+    expect(getPokeathlonModId('gen6infrandombattle')).toBe('gen6infinity');
+  });
+
+  it('respects the gen prefix', () => {
+    expect(getPokeathlonModId('gen6insurgenceou')).toBe('gen6insurgence');
+    expect(getPokeathlonModId('gen7infinitefusionou')).toBe('gen7infinitefusion');
+  });
+
+  it('returns null for non-mod / vanilla formats', () => {
+    expect(getPokeathlonModId('gen9ou')).toBeNull();
+    expect(getPokeathlonModId('gen9randombattle')).toBeNull();
+    expect(getPokeathlonModId('gen9championsou')).toBeNull();
+    expect(getPokeathlonModId('')).toBeNull();
+  });
+});
+
+describe('getFusionBodyStanceFormes', () => {
+  it('returns both Aegislash stance formes when the Body is Aegislash (either stance)', () => {
+    expect(getFusionBodyStanceFormes('Aegislash')).toEqual(['Aegislash', 'Aegislash-Blade']);
+    expect(getFusionBodyStanceFormes('Aegislash-Blade')).toEqual(['Aegislash', 'Aegislash-Blade']);
+  });
+
+  it('returns [] for non-stance Body species or empty input', () => {
+    expect(getFusionBodyStanceFormes('Pikachu')).toEqual([]);
+    expect(getFusionBodyStanceFormes('')).toEqual([]);
+    expect(getFusionBodyStanceFormes(undefined)).toEqual([]);
   });
 });
