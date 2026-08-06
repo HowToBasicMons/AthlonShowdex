@@ -1,6 +1,6 @@
 import { type AbilityName, type MoveName, Move as SmogonMove } from '@smogon/calc';
 import { MOVES } from '@smogon/calc/dist/data/moves';
-import { getPokeathlonAbilityIncomingMoveMod, getPokeathlonAbilityMoveBoost } from '@showdex/consts/dex';
+import { getPokeathlonAbilityBasePowerMod, getPokeathlonAbilityIncomingMoveMod, getPokeathlonAbilityMoveBoost, getPokeathlonAbilityMoveType } from '@showdex/consts/dex';
 import { type CalcdexBattleField, type CalcdexMoveOverride, type CalcdexPokemon } from '@showdex/interfaces/calc';
 import { clamp, formatId } from '@showdex/utils/core';
 import {
@@ -107,6 +107,35 @@ export const createSmogonMove = (
 
   if (forceTypeless || typeOverride) {
     overrides.type = (forceTypeless ? '???' : typeOverride) as SmogonMoveOverrides['type'];
+  }
+
+  // Pokéathlon (Soulstones) -ate-style type changers: Black Light (Light->Dark), Dark Matter
+  // (Normal->Cosmic), Whiteout (Dark->Light), Illuminate (Normal->Light). Rewrite the move type
+  // BEFORE the SmogonMove is built so the calc computes type-effectiveness on the NEW type, and the
+  // +20% typeChangerBoosted BP bump keys off it. Only applies when the user hasn't forced a manual
+  // type override (mirrors the server onModifyType running on the base move type).
+  if (!forceTypeless && !typeOverride) {
+    const dexMove = dex.moves.get(moveName as Parameters<typeof dex.moves.get>[0]);
+    const baseMoveType = (overrides.type as string) || dexMove?.type;
+    const attackerAbility = dirtyAbility || revealedAbility;
+
+    const retyped = baseMoveType && attackerAbility && getPokeathlonAbilityMoveType(
+      attackerAbility,
+      baseMoveType,
+      {
+        id: dexMove?.id,
+        isZ: options.useZ,
+        isMax: options.useMax,
+        isStatus: dexMove?.category === 'Status',
+        isTeraBlast: moveName === 'Tera Blast' as MoveName,
+        terastallized,
+      },
+      { modId: getPokeathlonModId(format) },
+    );
+
+    if (retyped) {
+      overrides.type = retyped as SmogonMoveOverrides['type'];
+    }
   }
 
   if (categoryOverride) {
@@ -257,7 +286,25 @@ export const createSmogonMove = (
     });
   })();
 
-  const bpFactor = newMoonFactor * abilityMoveBoost * abilityIncomingMod;
+  // Pokéathlon custom base-power abilities keyed off move category / holder forme: Dual Mastery
+  // (1.3x, Chaos) & Lernean (net multihit multiplier, Chaos/Insurgence). @smogon/calc doesn't know
+  // these, so approximate their net output as a base-power mod.
+  const abilityBasePowerMod = (() => {
+    const attackerAbility = pokemon.dirtyAbility || pokemon.ability;
+
+    if (!attackerAbility) {
+      return 1;
+    }
+
+    return getPokeathlonAbilityBasePowerMod(attackerAbility, {
+      moveCategory: (overrides.category as string)
+        || dex.moves.get(moveName as Parameters<typeof dex.moves.get>[0])?.category,
+      speciesForme: pokemon.speciesForme,
+      fusion: pokemon.fusion,
+    });
+  })();
+
+  const bpFactor = newMoonFactor * abilityMoveBoost * abilityIncomingMod * abilityBasePowerMod;
 
   // applies all our post-construction `bp` mods (calculate() rebuilds the move via clone(), so this
   // must run on both the original & the clone)

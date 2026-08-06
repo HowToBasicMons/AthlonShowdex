@@ -222,6 +222,7 @@ export const PokeathlonAbilityMoveBoosts: PokeathlonAbilityMoveBoostRule[] = [
   { abilities: ['spellcaster'], moveTypes: ['Psychic'], multiplier: 1.5, requiresLowHp: true, scope: ['soulstones'] },
   { abilities: ['starstruck'], moveTypes: ['Cosmic'], multiplier: 1.5, requiresLowHp: true, scope: ['soulstones'] },
   { abilities: ['irradiate'], moveTypes: ['Light'], multiplier: 1.5, requiresLowHp: true, scope: ['soulstones'] },
+  { abilities: ['funeralpyre'], moveTypes: ['Fire', 'Ghost'], multiplier: 2, scope: ['soulstones'] },
 
   // Insurgence custom-type offensive boosters
   { abilities: ['shadowsynergy'], moveTypes: ['Dark'], multiplier: 1.5, scope: ['insurgence'] },
@@ -282,6 +283,11 @@ export const PokeathlonAbilityIncomingMoveMods: PokeathlonAbilityMoveBoostRule[]
   // Soulstones: Light Bulb halves incoming Dark; Terrorize halves incoming Bug
   { abilities: ['lightbulb'], moveTypes: ['Dark'], multiplier: 0.5, scope: ['soulstones'] },
   { abilities: ['terrorize'], moveTypes: ['Bug'], multiplier: 0.5, scope: ['soulstones'] },
+  // Soulstones: attacker's offensive stat halved vs these types (onSourceModifyAtk/SpA ×0.5)
+  { abilities: ['astralmajesty'], moveTypes: ['Light', 'Dragon'], multiplier: 0.5, scope: ['soulstones'] },
+  { abilities: ['irredeemable'], moveTypes: ['Light', 'Fairy'], multiplier: 0.5, scope: ['soulstones'] },
+  { abilities: ['realism'], moveTypes: ['Ghost', 'Fairy'], multiplier: 0.5, scope: ['soulstones'] },
+  { abilities: ['tropicalhide'], moveTypes: ['Grass', 'Water'], multiplier: 0.5, scope: ['soulstones'] },
 
   // custom type-immunity abilities (multiplier 0 = the move deals no damage). @smogon/calc doesn't
   // know these, so it'd otherwise calc full damage against an immune holder.
@@ -322,4 +328,143 @@ export const getPokeathlonAbilityIncomingMoveMod = (
 
     return mult * rule.multiplier;
   }, 1);
+};
+
+/**
+ * Hydra formes for Lernean, ordered by ascending head count (5 -> 9 hits).
+ *
+ * * Index in this list == `nhits - 5`, mirroring the server's `formes.indexOf()` (see
+ *   `gen9chaos/abilities.ts` `onBasePower`/`onModifyMove`).
+ * * The base name (no suffix) is the 5-hit forme; `-Six`..`-Nine` add one hit each.
+ *
+ * @since 1.0.8
+ */
+const LerneanForme = ['Hydreigon-Mega', 'Hydroupa'];
+const LerneanSuffixes = ['', '-Six', '-Seven', '-Eight', '-Nine'];
+
+/**
+ * Computes the net base-power multiplier for a Pokéathlon custom **base-power** ability the
+ * `@smogon/calc` doesn't know — keyed off the move's category & the holder's forme/fusion.
+ *
+ * * **Dual Mastery** (`dualmastery`, Chaos): 1.3x to whichever category is currently primed. The
+ *   server alternates Physical<->Special after each damaging hit; a static calc has no move history,
+ *   so we model it as "primed for the move being evaluated" (i.e. always 1.3x on the current move).
+ * * **Lernean** (`lernean`, Chaos/Insurgence): turns the move into a `5 + index` multihit at reduced
+ *   per-hit BP; the net output multiplier is `1.15 + 0.075 * (nhits - 5)` (5 hits -> 1.15x, 9 hits
+ *   -> 1.45x). `nhits` is derived from the HP-tier forme suffix (`-Six`..`-Nine`) or `fusion` name.
+ *   Modeled as net damage, not literal multihit (the calc's per-hit interactions aren't reproduced).
+ * * Returns `1` when the ability doesn't apply.
+ *
+ * @since 1.0.8
+ */
+export const getPokeathlonAbilityBasePowerMod = (
+  ability: string,
+  context: { moveCategory?: string; speciesForme?: string; fusion?: string } = {},
+): number => {
+  const id = formatId(ability);
+
+  if (!id) {
+    return 1;
+  }
+
+  // ponytail: alternation state isn't tracked (no move history in a static calc), so the boost is
+  // shown as active for the current move -- matches how Protosynthesis & co. are always shown active.
+  if (id === 'dualmastery') {
+    return context.moveCategory && context.moveCategory !== 'Status' ? 1.3 : 1;
+  }
+
+  if (id === 'lernean') {
+    const { speciesForme, fusion } = context;
+
+    for (const name of LerneanForme) {
+      const formes = LerneanSuffixes.map((suffix) => name + suffix);
+
+      let index = speciesForme ? formes.indexOf(speciesForme) : -1;
+
+      if (index < 0 && fusion) {
+        index = formes.indexOf(fusion);
+      }
+
+      if (index >= 0) {
+        const nhits = 5 + index;
+
+        return 1.15 + (0.075 * (nhits - 5));
+      }
+    }
+  }
+
+  return 1;
+};
+
+/**
+ * `-ate`-style custom-type changer abilities (Soulstones): rewrite a move's type before the calc
+ * resolves type-effectiveness & the `typeChangerBoosted` +20% BP bump (that bump rides the existing
+ * `MoveBoost` table keyed on the *new* type).
+ *
+ * * Mirrors the four servers' `onModifyType` in `gen9soulstones/abilities.ts` exactly: same
+ *   `fromType -> toType` map, same `noModifyType` exclusion list, same Z/Tera/Max guards.
+ * * `blacklight` Light->Dark, `darkmatter` Normal->Cosmic, `whiteout` Dark->Light,
+ *   `illuminate` Normal->Light.
+ *
+ * @since 1.0.8
+ */
+const PokeathlonTypeChangers: Record<string, { from: string; to: string }> = {
+  blacklight: { from: 'Light', to: 'Dark' },
+  darkmatter: { from: 'Normal', to: 'Cosmic' },
+  whiteout: { from: 'Dark', to: 'Light' },
+  illuminate: { from: 'Normal', to: 'Light' },
+};
+
+// mirrors the server `noModifyType` list shared by all four onModifyType handlers
+const PokeathlonNoModifyType = [
+  'judgment', 'multiattack', 'naturalgift', 'revelationdance', 'technoblast', 'terrainpulse', 'weatherball',
+];
+
+/**
+ * Resolves the post-`onModifyType` move type for a Soulstones `-ate`-style changer ability, or `null`
+ * when no change applies (wrong original type, excluded move, or a non-changer ability).
+ *
+ * @since 1.0.8
+ */
+export const getPokeathlonAbilityMoveType = (
+  attackerAbility: string,
+  moveType: string,
+  move: { id?: string; isZ?: boolean; isMax?: boolean; isStatus?: boolean; isTeraBlast?: boolean; terastallized?: boolean },
+  context: { modId?: string } = {},
+): string => {
+  const id = formatId(attackerAbility);
+
+  if (!id || !moveType) {
+    return null;
+  }
+
+  // these abilities only exist in Soulstones; guard by mod scope like the boost rules do
+  const activeModSlug = context.modId ? context.modId.replace(/^gen\d+/, '') : null;
+
+  if (activeModSlug !== 'soulstones') {
+    return null;
+  }
+
+  const changer = PokeathlonTypeChangers[id];
+
+  if (!changer || moveType !== changer.from) {
+    return null;
+  }
+
+  // server guards: skip fixed-type moves (unless Max), non-status Z-moves, and Tera Blast while Tera'd
+  const moveId = move?.id ? formatId(move.id) : null;
+
+  if (moveId && PokeathlonNoModifyType.includes(moveId) && !move.isMax) {
+    return null;
+  }
+
+  if (move?.isZ && !move.isStatus) {
+    return null;
+  }
+
+  if (move?.isTeraBlast && move.terastallized) {
+    return null;
+  }
+
+  return changer.to;
 };
